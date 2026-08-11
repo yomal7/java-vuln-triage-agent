@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+results/
+target-project/target/
+target-project/_dep_tree_output.txt
