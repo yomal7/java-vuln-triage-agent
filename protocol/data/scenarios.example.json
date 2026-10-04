@@ -1,0 +1,41 @@
+{
+  "_comment": "Illustrative scenarios on the spike's 6 alerts. The 'expected' verdicts are PLACEHOLDERS: the researcher must set the ground truth. S03 is a control (nothing missing, no question expected).",
+  "schema_version": "0.1",
+  "scenarios": [
+    {
+      "id": "S01",
+      "asset_id": "mock-app-01",
+      "dependency": "org.apache.logging.log4j:log4j-core:2.13.0",
+      "withheld": ["network_exposure"],
+      "expected_slots": ["reachability", "network_exposure"],
+      "analyst_answers": { "reachability": "yes" },
+      "expected": { "reachable": "Yes", "recommended_action": "Upgrade immediately" },
+      "notes": "Reachability is ambiguous in the manual stub; exposure is hidden."
+    },
+    {
+      "id": "S02",
+      "asset_id": "mock-app-02",
+      "dependency": "org.springframework:spring-core:5.2.0.RELEASE",
+      "withheld": ["asset_criticality"],
+      "expected_slots": ["asset_criticality"],
+      "expected": { "reachable": "No", "recommended_action": "Upgrade in next cycle" }
+    },
+    {
+      "id": "S03",
+      "asset_id": "mock-app-02",
+      "dependency": "junit:junit:4.12",
+      "withheld": [],
+      "expected_slots": [],
+      "expected": { "reachable": "No", "recommended_action": "Accept risk" },
+      "notes": "Control: nothing is missing, so any question counts as an unnecessary interruption."
+    },
+    {
+      "id": "S04",
+      "asset_id": "mock-app-01",
+      "dependency": "com.fasterxml.jackson.core:jackson-databind:2.9.8",
+      "withheld": ["network_exposure", "patch_window"],
+      "expected_slots": ["network_exposure", "patch_window"],
+      "expected": { "reachable": "No", "recommended_action": "Upgrade in next cycle" }
+    }
+  ]
+}

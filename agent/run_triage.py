@@ -14,17 +14,21 @@ Usage:
 import argparse
 import json
 import os
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-from triage_agent import build_agent, triage_one
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from protocol.cli import add_slot_args, make_slot_reporter  # noqa: E402
+from triage_agent import build_agent, triage_one  # noqa: E402
 
 load_dotenv()
 
-ROOT = Path(__file__).resolve().parent.parent
 RESULTS_DIR = ROOT / "results"
 RUNS_DIR = RESULTS_DIR / "triage_runs"
 
@@ -40,12 +44,12 @@ def _out_path(dep: dict) -> Path:
     return RUNS_DIR / name
 
 
-def _run_one(agent, alert: dict) -> tuple[str, dict | None, Exception | None, float]:
+def _run_one(agent, alert: dict, llm_info: dict) -> tuple[str, dict | None, Exception | None, float]:
     dep = alert["dependency"]
     coord = f"{dep['group_id']}:{dep['artifact_id']}:{dep['version']}"
     t0 = time.monotonic()
     try:
-        run = triage_one(agent, alert)
+        run = triage_one(agent, alert, llm_info)
         return coord, run, None, time.monotonic() - t0
     except Exception as e:
         return coord, None, e, time.monotonic() - t0
@@ -54,7 +58,9 @@ def _run_one(agent, alert: dict) -> tuple[str, dict | None, Exception | None, fl
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="re-triage alerts that already have a saved result")
+    add_slot_args(parser)
     args = parser.parse_args()
+    slot_reporter = make_slot_reporter(args)  # fails early on a bad --asset
 
     alerts_path = RESULTS_DIR / "alerts.json"
     if not alerts_path.exists():
@@ -83,11 +89,13 @@ def main():
     print(f"[triage] {len(to_run)}/{len(alerts)} alert(s) queued, concurrency={TRIAGE_CONCURRENCY}. "
           f"Per-step detail streams below; full request/response logs land in results/llm/<dependency>/.")
     print("[triage] building agent ...")
-    agent = build_agent()
+    agent, stack = build_agent()
+    llm_info = stack.describe()
+    print(f"[triage] llm: {llm_info['provider']} models={llm_info['models']} rpm={llm_info['rpm']}")
 
     completed = 0
     with ThreadPoolExecutor(max_workers=TRIAGE_CONCURRENCY) as pool:
-        futures = {pool.submit(_run_one, agent, alert): alert for alert in to_run}
+        futures = {pool.submit(_run_one, agent, alert, llm_info): alert for alert in to_run}
         for future in as_completed(futures):
             alert = futures[future]
             dep = alert["dependency"]
@@ -100,6 +108,10 @@ def main():
 
             print(f"[triage] ({completed}/{len(to_run)}) verdict for {coord} ({elapsed:.1f}s): "
                   f"{run['verdict']['severity']} — {run['verdict']['recommended_action']}")
+            # Shadow mode: record which slots were unresolved; behaviour is unchanged.
+            run["slot_report"] = slot_reporter(alert)
+            if run["slot_report"]["needs_escalation"]:
+                print(f"[triage]   slot check: unresolved -> {', '.join(run['slot_report']['unresolved'])}")
             _out_path(dep).write_text(json.dumps(run, indent=2))
 
     print(f"\n[triage] done — see {RUNS_DIR}/")

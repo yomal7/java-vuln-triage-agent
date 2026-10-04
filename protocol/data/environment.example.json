@@ -1,0 +1,18 @@
+{
+  "_comment": "Illustrative mock assets. Each asset holds the complete truth; a scenario's 'withheld' list decides what the agent cannot see.",
+  "schema_version": "0.1",
+  "assets": {
+    "mock-app-01": {
+      "description": "Customer portal (illustrative)",
+      "network_exposure": "internet_facing",
+      "asset_criticality": "high",
+      "patch_window": "monthly, first Saturday"
+    },
+    "mock-app-02": {
+      "description": "Internal batch tool (illustrative)",
+      "network_exposure": "internal",
+      "asset_criticality": "low",
+      "patch_window": "quarterly release train"
+    }
+  }
+}

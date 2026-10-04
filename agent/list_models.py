@@ -40,5 +40,5 @@ for m in models:
 
 print(
     "\nPick a Flash or Flash-Lite model from the list above (Pro models have "
-    "much stricter free-tier daily caps) and set GEMINI_MODEL in your .env."
+    "much stricter free-tier daily caps) and put it in LLM_MODELS in your .env (comma-separated: first = preferred, the rest are fallbacks)."
 )
