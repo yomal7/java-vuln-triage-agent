@@ -61,7 +61,7 @@ def alert(artifact="spring-core"):
 
 def test_resume_keeps_the_whole_investigation_and_adds_the_answers(monkeypatch, tmp_path):
     ta, agent, stack, model = build(monkeypatch, tmp_path, [
-        _call("search_code_usage", {"artifact_id": "spring-core"}, "c1"),
+        _call("check_reachability", {"group_id": "org.springframework", "artifact_id": "spring-core", "version": "5.2.0.RELEASE"}, "c1"),
         _call("TriageVerdict", FIRST, "c2"),
         _call("TriageVerdict", FINAL, "c3"),
     ])
@@ -77,7 +77,7 @@ def test_resume_keeps_the_whole_investigation_and_adds_the_answers(monkeypatch, 
     kinds = [m.type for m in last_input]
     assert "tool" in kinds                                           # first-pass tool results are still there
     text = " ".join(str(m.content) for m in last_input)
-    assert "No references to" in text or "spring-core" in text       # the search_code_usage result
+    assert '"status": "absent"' in text                              # the check_reachability result
     assert "analyst answered" in text and "internet_facing" in text  # plus the new answers
     assert last_input[-1].type == "human"
 

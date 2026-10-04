@@ -34,8 +34,11 @@ def _is_verdict_message(msg: Any, verdict_tool: str) -> bool:
         if any(c.get("name") == verdict_tool for c in calls):
             return True
         if not calls:
+            body = _text(getattr(msg, "content", "")).strip()
+            if body.startswith("```"):
+                body = body.strip("`").removeprefix("json").strip()
             try:
-                data = json.loads(_text(getattr(msg, "content", "")))
+                data = json.loads(body)
                 return isinstance(data, dict) and "recommended_action" in data
             except (ValueError, TypeError):
                 return False

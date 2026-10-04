@@ -175,6 +175,12 @@ def test_baseline_stops_and_the_analyst_decides_from_a_dump_without_the_verdict(
     assert "INVESTIGATION STOPPED" in dump and "No references found" in dump
     assert "recommended_action" not in dump and "TriageVerdict" not in dump
     assert channel.asked == []
+    assert rec["dump"] == dump                          # the record keeps exactly what the analyst saw
+
+
+def test_micro_record_has_no_dump():
+    rec, _, _ = run("micro")
+    assert rec["dump"] is None
 
 
 # ---- timing -------------------------------------------------------------

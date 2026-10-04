@@ -97,6 +97,7 @@ def main():
     ap.add_argument("--simulate", action="store_true", help="scripted correct analyst, no human (development only)")
     ap.add_argument("--max-questions", type=int, default=2)
     ap.add_argument("--gate-env-on-absent", action="store_true")
+    ap.add_argument("--show-dump", action="store_true", help="print the baseline transcript that was shown to the analyst")
     ap.add_argument("--scenarios", default=str(DEFAULT_SCENARIOS))
     ap.add_argument("--environment", default=str(DEFAULT_ENVIRONMENT))
     ap.add_argument("--reachability", default=str(DEFAULT_REACHABILITY))
@@ -131,6 +132,8 @@ def main():
             engine_factory=engine_factory,
         )
         summarise(rec)
+        if args.show_dump and rec.get("dump"):
+            print("\n----- baseline dump shown to the analyst -----\n" + rec["dump"] + "\n-----\n")
     print(f"\nrecords in {OUT_DIR}/")
 
 

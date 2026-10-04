@@ -95,6 +95,7 @@ def run_session(
     final_verdict: Dict[str, Any]
     decided_by: str
     resumed: Optional[Investigation] = None
+    dump: Optional[str] = None
 
     if not unresolved:
         final_verdict, decided_by = first.verdict, "agent_no_escalation"
@@ -153,6 +154,7 @@ def run_session(
             "still_unresolved_after": [s for s in unresolved if s not in answered_known],
         },
         "final": {"decided_by": decided_by, "verdict": final_verdict},
+        "dump": dump,  # baseline only: exactly what the analyst was shown
         "resumed_verdict_changed": (
             None if resumed is None else resumed.verdict != first.verdict
         ),

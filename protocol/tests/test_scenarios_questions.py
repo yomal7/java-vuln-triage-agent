@@ -105,3 +105,14 @@ def test_console_channel_accepts_numbers_and_names_and_rejects_garbage():
     assert ch.ask(q) == "internal"            # "2" -> second option
     assert ch.ask(q) == "internal"            # typed name
     assert sum("Please enter one of" in line for line in out) == 2
+
+
+def test_dump_hides_verdicts_in_the_shapes_real_models_return():
+    """Gemini returns the final verdict as raw JSON, fenced JSON, or a list of text parts."""
+    class M:
+        def __init__(self, content): self.type, self.content, self.tool_calls, self.name = "ai", content, [], None
+    verdict = json.dumps({"severity": "High", "recommended_action": "Mitigate"})
+    for content in (verdict, f"```json\n{verdict}\n```", [{"type": "text", "text": verdict}]):
+        out = format_context_dump([M("I checked the tools."), M(content)])
+        assert "I checked the tools." in out
+        assert "recommended_action" not in out and "Mitigate" not in out

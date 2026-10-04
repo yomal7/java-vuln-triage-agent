@@ -23,7 +23,7 @@ from llm import build_llm_stack  # noqa: E402
 from logging_callback import TriageLoggingCallback  # noqa: E402
 from protocol.session import Investigation  # noqa: E402
 from protocol.verdict import TriageVerdict  # noqa: E402
-from tools import ALL_TOOLS  # noqa: E402
+from tools import get_tools, reachability_source  # noqa: E402
 
 # Model, provider, retries, rate cap and fallback chain are all configured in
 # .env — see the docstring at the top of llm.py. If a model 404s, run
@@ -31,19 +31,31 @@ from tools import ALL_TOOLS  # noqa: E402
 
 LLM_LOG_DIR = ROOT / "results" / "llm"
 
-SYSTEM_PROMPT = """You are a vulnerability triage analyst investigating a single \
+_STEP_1 = {
+    "stored": """1. Check whether the vulnerable functionality is reachable from this project's \
+   own code with check_reachability. It reports a precomputed static-analysis \
+   result: confirmed, absent, ambiguous or error. 'absent' means no path was \
+   found (not an absolute proof). If the status is ambiguous or error, do NOT \
+   guess: report reachable as Unclear and say it is unresolved, unless an \
+   analyst later tells you the answer.""",
+    "grep": """1. Check whether the vulnerable package is actually referenced in this \
+   project's own source (reachability) - search for the artifact id and, if \
+   the advisory names a specific vulnerable class/method, search for that too.""",
+}
+
+
+def build_system_prompt(source: str = "stored") -> str:
+    return f"""You are a vulnerability triage analyst investigating a single \
 dependency alert in a Java/Maven project.
 
 The dependency's build context (direct/transitive, scope) and the full \
 advisory detail (CWE, CVSS, summary, references) are already given to you in \
-the first message — that's real, already-fetched data, not something to \
+the first message - that's real, already-fetched data, not something to \
 re-derive or second-guess. A test-only dependency is a very different risk \
 than one shipped to production; weigh scope accordingly from the start.
 
 From there, work through the rest of the investigation like a real analyst would:
-1. Check whether the vulnerable package is actually referenced in this \
-   project's own source (reachability) — search for the artifact id and, if \
-   the advisory names a specific vulnerable class/method, search for that too.
+{_STEP_1[source]}
 2. Check KEV status and EPSS score to gauge real-world exploitation risk, \
    not just theoretical severity.
 3. Check whether a fixed version is available.
@@ -61,14 +73,17 @@ When you've gathered enough evidence, produce your final verdict, choosing \
 only from the allowed options for severity, reachable and recommended_action."""
 
 
+SYSTEM_PROMPT = build_system_prompt("stored")
+
+
 def build_agent():
     """Returns (agent, llm_stack). The stack carries the retry/fallback/rate-limit
     middleware and the settings that get recorded in every run file."""
     stack = build_llm_stack()
     agent = create_agent(
         model=stack.model,
-        tools=ALL_TOOLS,
-        system_prompt=SYSTEM_PROMPT,
+        tools=get_tools(),
+        system_prompt=build_system_prompt(reachability_source()),
         response_format=TriageVerdict,
         middleware=stack.middleware,
     )

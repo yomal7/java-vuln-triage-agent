@@ -58,6 +58,13 @@ def _same_dependency(entry: Mapping[str, Any], dep: Mapping[str, Any]) -> bool:
     return all(d.get(k) == dep.get(k) for k in ("group_id", "artifact_id", "version"))
 
 
+def entries_for_dependency(
+    results: Iterable[Mapping[str, Any]], dependency: Mapping[str, Any]
+) -> List[Mapping[str, Any]]:
+    """All reachability entries that belong to one dependency."""
+    return [r for r in results if _same_dependency(r, dependency)]
+
+
 def aggregate_reachability(
     results: Iterable[Mapping[str, Any]],
     dependency: Mapping[str, Any],

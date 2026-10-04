@@ -61,7 +61,7 @@ def _script():
     return [
         _rate_limited(),  # first call fails, then retries
         AIMessage(content="", tool_calls=[
-            {"name": "search_code_usage", "args": {"artifact_id": "jackson-databind"}, "id": "c1"}]),
+            {"name": "check_reachability", "args": {"group_id": "com.fasterxml.jackson.core", "artifact_id": "jackson-databind", "version": "2.9.8"}, "id": "c1"}]),
         AIMessage(content="", tool_calls=[
             {"name": "TriageVerdict", "args": VERDICT, "id": "c2"}]),
     ]

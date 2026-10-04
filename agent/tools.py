@@ -14,12 +14,24 @@ Only search_code_usage still does a live, non-prefetched action, because
 it depends on the codebase, not the advisory data.
 """
 import json
+import os
+import sys
 from pathlib import Path
 
 from langchain_core.tools import tool
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from protocol.aggregate import (  # noqa: E402
+    aggregate_reachability,
+    entries_for_dependency,
+    load_reachability,
+)
+
 RESULTS_DIR = ROOT / "results"
+REACHABILITY_PATH = Path(os.environ.get("REACHABILITY_FILE", RESULTS_DIR / "reachability.json"))
 TARGET_PROJECT_SRC = ROOT / "target-project" / "src"
 
 try:
@@ -79,6 +91,39 @@ def check_exploit_maturity(group_id: str, artifact_id: str, version: str) -> str
 
 
 @tool
+def check_reachability(group_id: str, artifact_id: str, version: str) -> str:
+    """Check whether the vulnerable functionality of this dependency is
+    reachable from the target project's own code, using a PRECOMPUTED static
+    analysis (instant lookup). status is one of:
+      confirmed - a path to vulnerable code exists
+      absent    - no path was found (static analysis; not an absolute proof)
+      ambiguous - the analysis could not decide; do NOT assume either way
+      error     - no usable result
+    Also returns a reason and any evidence per vulnerability."""
+    alert = _find_alert(group_id, artifact_id, version)
+    if not alert:
+        return "unknown — no advisory data for this dependency"
+    dep = alert["dependency"]
+    results = load_reachability(REACHABILITY_PATH)
+    agg = aggregate_reachability(results, dep, [v["id"] for v in alert["vulnerabilities"]])
+    details = [
+        {
+            "vulnerability_id": r.get("vulnerability_id"),
+            "status": r.get("status"),
+            "reason": r.get("reason"),
+            "ambiguity_cause": r.get("ambiguity_cause"),
+            "evidence": r.get("evidence", []),
+        }
+        for r in entries_for_dependency(results, dep)
+    ]
+    return json.dumps(
+        {"dependency": f"{group_id}:{artifact_id}:{version}", "status": agg["status"],
+         "counts": agg["counts"], "details": details},
+        indent=2,
+    )
+
+
+@tool
 def search_code_usage(artifact_id: str, symbol_hint: str = "") -> str:
     """Grep the target project's own source tree for imports/usages that
     reference this dependency. A crude but real reachability signal: if
@@ -100,9 +145,19 @@ def search_code_usage(artifact_id: str, symbol_hint: str = "") -> str:
     return "\n".join(matches[:30])
 
 
-ALL_TOOLS = [
-    check_kev_status,
-    check_fix_version,
-    check_exploit_maturity,
-    search_code_usage,
-]
+def reachability_source() -> str:
+    """'stored' (default): the agent reads the precomputed reachability.json, the same
+    evidence the slot check uses. 'grep': the original v1 text-search tool, kept as the
+    baseline for the v1-vs-engine comparison."""
+    src = os.environ.get("REACHABILITY_SOURCE", "stored").strip().lower()
+    if src not in ("stored", "grep"):
+        raise ValueError(f"REACHABILITY_SOURCE must be 'stored' or 'grep', got {src!r}")
+    return src
+
+
+def get_tools() -> list:
+    reach = search_code_usage if reachability_source() == "grep" else check_reachability
+    return [check_kev_status, check_fix_version, check_exploit_maturity, reach]
+
+
+ALL_TOOLS = get_tools()
