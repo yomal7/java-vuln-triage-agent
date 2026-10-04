@@ -40,14 +40,26 @@ class Engine(Protocol):
     def resume(self, messages: Sequence[Any], human_text: str) -> Investigation: ...
 
 
+def count_tool_problems(messages: Sequence[Any]) -> int:
+    """Tool calls that failed or found nothing because of bad arguments. Recorded so
+    a run whose evidence was silently incomplete can be spotted in the analysis."""
+    n = 0
+    for m in messages:
+        if getattr(m, "type", "") == "tool":
+            if getattr(m, "status", None) == "error" or str(getattr(m, "content", "")).startswith("unknown —"):
+                n += 1
+    return n
+
+
 def build_resume_message(qa: Sequence[tuple]) -> str:
     lines = ["The analyst has answered your outstanding questions:"]
     for q, a in qa:
         shown = a if a != UNKNOWN else "unknown (the analyst could not determine this)"
         lines.append(f"- {q.text}\n  Answer: {shown}")
     lines.append(
-        "\nTreat these answers as verified facts. Update your investigation where "
-        "they matter and give your final verdict."
+        "\nTreat these answers as verified facts. Do not repeat tool calls whose "
+        "results you already have. Update your investigation where they matter and "
+        "give your final verdict."
     )
     return "\n".join(lines)
 
@@ -142,6 +154,7 @@ def run_session(
             "verdict": first.verdict,
             "models_used": first.models_used,
             "duration_s": round(first.duration_s, 3),
+            "tool_problems": count_tool_problems(first.messages),
         },
         "slot_report_before": report,
         "design_check": design_check,
@@ -155,6 +168,10 @@ def run_session(
         },
         "final": {"decided_by": decided_by, "verdict": final_verdict},
         "dump": dump,  # baseline only: exactly what the analyst was shown
+        "resume_tool_problems": (
+            None if resumed is None
+            else count_tool_problems(resumed.messages) - count_tool_problems(first.messages)
+        ),
         "resumed_verdict_changed": (
             None if resumed is None else resumed.verdict != first.verdict
         ),

@@ -196,6 +196,28 @@ def test_timing_separates_analyst_time_from_system_wait():
     assert rec["timing"]["system_wait_s"] == 2.0
 
 
+# ---- tool problems ------------------------------------------------------
+
+def test_tool_problems_are_counted_so_incomplete_evidence_is_visible():
+    engine = FakeEngine()
+    engine.first_messages.insert(3, FakeMsg("tool", "unknown — no advisory data for x:y:1", name="check_fix_version"))
+    rec, _, _ = run("micro", engine=engine)
+    assert rec["first_pass"]["tool_problems"] == 1
+    assert rec["resume_tool_problems"] == 0            # nothing new went wrong during the resume
+
+
+def test_clean_run_has_zero_tool_problems():
+    rec, _, _ = run("micro")
+    assert rec["first_pass"]["tool_problems"] == 0
+
+
+def test_resume_message_tells_the_agent_not_to_repeat_tool_calls():
+    from protocol.questions import build_question
+    from protocol.slots import Slot
+    q = build_question(Slot.NETWORK_EXPOSURE, dependency=COORD, asset="app")
+    assert "Do not repeat tool calls" in build_resume_message([(q, "internal")])
+
+
 # ---- misc ---------------------------------------------------------------
 
 def test_record_is_json_serialisable_and_bad_condition_rejected():

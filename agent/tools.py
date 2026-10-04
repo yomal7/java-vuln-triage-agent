@@ -49,7 +49,25 @@ def _find_alert(group_id: str, artifact_id: str, version: str) -> dict | None:
         d = a["dependency"]
         if d["group_id"] == group_id and d["artifact_id"] == artifact_id and d["version"] == version:
             return a
-    return None
+    # Small models occasionally garble one coordinate when retyping it (seen live:
+    # group_id came back as "org.springframework:`,version:"). A UNIQUE artifact+version
+    # match is safe to accept; anything ambiguous is still refused.
+    candidates = [
+        a for a in _ALERTS
+        if a["dependency"]["artifact_id"] == artifact_id and a["dependency"]["version"] == version
+    ]
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _unknown(group_id: str, artifact_id: str, version: str) -> str:
+    known = ", ".join(
+        f"{a['dependency']['group_id']}:{a['dependency']['artifact_id']}:{a['dependency']['version']}"
+        for a in _ALERTS
+    )
+    return (
+        f"unknown — no advisory data for {group_id}:{artifact_id}:{version}. "
+        f"Check the coordinates; known dependencies: {known}"
+    )
 
 
 @tool
@@ -59,7 +77,7 @@ def check_kev_status(group_id: str, artifact_id: str, version: str) -> str:
     exploitation in the wild, not just theoretical risk."""
     alert = _find_alert(group_id, artifact_id, version)
     if not alert:
-        return "unknown — no advisory data for this dependency"
+        return _unknown(group_id, artifact_id, version)
     flags = {v["id"]: v["in_kev"] for v in alert["vulnerabilities"]}
     return json.dumps(flags, indent=2)
 
@@ -71,7 +89,7 @@ def check_fix_version(group_id: str, artifact_id: str, version: str) -> str:
     one. May return null if the advisory doesn't record a fixed version."""
     alert = _find_alert(group_id, artifact_id, version)
     if not alert:
-        return "unknown — no advisory data for this dependency"
+        return _unknown(group_id, artifact_id, version)
     hints = {v["id"]: v.get("fixed_version_hint") for v in alert["vulnerabilities"]}
     return json.dumps(hints, indent=2)
 
@@ -85,7 +103,7 @@ def check_exploit_maturity(group_id: str, artifact_id: str, version: str) -> str
     for that CVE (e.g. too new, or GHSA-only with no CVE alias)."""
     alert = _find_alert(group_id, artifact_id, version)
     if not alert:
-        return "unknown — no advisory data for this dependency"
+        return _unknown(group_id, artifact_id, version)
     scores = {v["id"]: v.get("epss_score") for v in alert["vulnerabilities"]}
     return json.dumps(scores, indent=2)
 
@@ -102,7 +120,7 @@ def check_reachability(group_id: str, artifact_id: str, version: str) -> str:
     Also returns a reason and any evidence per vulnerability."""
     alert = _find_alert(group_id, artifact_id, version)
     if not alert:
-        return "unknown — no advisory data for this dependency"
+        return _unknown(group_id, artifact_id, version)
     dep = alert["dependency"]
     results = load_reachability(REACHABILITY_PATH)
     agg = aggregate_reachability(results, dep, [v["id"] for v in alert["vulnerabilities"]])
@@ -117,7 +135,7 @@ def check_reachability(group_id: str, artifact_id: str, version: str) -> str:
         for r in entries_for_dependency(results, dep)
     ]
     return json.dumps(
-        {"dependency": f"{group_id}:{artifact_id}:{version}", "status": agg["status"],
+        {"dependency": f"{dep['group_id']}:{dep['artifact_id']}:{dep['version']}", "status": agg["status"],
          "counts": agg["counts"], "details": details},
         indent=2,
     )
@@ -160,4 +178,4 @@ def get_tools() -> list:
     return [check_kev_status, check_fix_version, check_exploit_maturity, reach]
 
 
-ALL_TOOLS = get_tools()
+ALL_TOOLS = get_tools()  
