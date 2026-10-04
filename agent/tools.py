@@ -178,4 +178,4 @@ def get_tools() -> list:
     return [check_kev_status, check_fix_version, check_exploit_maturity, reach]
 
 
-ALL_TOOLS = get_tools()  
+ALL_TOOLS = get_tools()

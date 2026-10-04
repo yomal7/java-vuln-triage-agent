@@ -51,6 +51,11 @@ def count_tool_problems(messages: Sequence[Any]) -> int:
     return n
 
 
+def count_model_calls(messages: Sequence[Any]) -> int:
+    """Model turns in a message history (one per LLM call)."""
+    return sum(1 for m in messages if getattr(m, "type", "") == "ai")
+
+
 def build_resume_message(qa: Sequence[tuple]) -> str:
     lines = ["The analyst has answered your outstanding questions:"]
     for q, a in qa:
@@ -155,6 +160,7 @@ def run_session(
             "models_used": first.models_used,
             "duration_s": round(first.duration_s, 3),
             "tool_problems": count_tool_problems(first.messages),
+            "model_calls": count_model_calls(first.messages),
         },
         "slot_report_before": report,
         "design_check": design_check,
@@ -168,6 +174,10 @@ def run_session(
         },
         "final": {"decided_by": decided_by, "verdict": final_verdict},
         "dump": dump,  # baseline only: exactly what the analyst was shown
+        "resume_model_calls": (
+            None if resumed is None
+            else count_model_calls(resumed.messages) - count_model_calls(first.messages)
+        ),
         "resume_tool_problems": (
             None if resumed is None
             else count_tool_problems(resumed.messages) - count_tool_problems(first.messages)

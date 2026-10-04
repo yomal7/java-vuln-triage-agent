@@ -232,3 +232,9 @@ def test_resume_message_marks_unknown_answers():
     from protocol.slots import Slot
     q = build_question(Slot.NETWORK_EXPOSURE, dependency=COORD, asset="app")
     assert "could not determine" in build_resume_message([(q, "unknown")])
+
+
+def test_model_calls_are_counted():
+    rec, _, _ = run("micro")
+    assert rec["first_pass"]["model_calls"] == 2
+    assert rec["resume_model_calls"] == 0

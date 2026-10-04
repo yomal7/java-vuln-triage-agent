@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 
 from llm import build_llm_stack  # noqa: E402
 from logging_callback import TriageLoggingCallback  # noqa: E402
+from protocol.rubric import POLICY_TEXT  # noqa: E402
 from protocol.session import Investigation  # noqa: E402
 from protocol.verdict import TriageVerdict  # noqa: E402
 from tools import get_tools, reachability_source  # noqa: E402
@@ -44,7 +45,18 @@ _STEP_1 = {
 }
 
 
-def build_system_prompt(source: str = "stored") -> str:
+def policy_enabled() -> bool:
+    """TRIAGE_POLICY=off removes the triage policy from the agent's instructions."""
+    import os
+    return os.environ.get("TRIAGE_POLICY", "on").strip().lower() != "off"
+
+
+def build_system_prompt(source: str = "stored", policy: bool = True) -> str:
+    base = _base_prompt(source)
+    return f"{base}\n\n{POLICY_TEXT}" if policy else base
+
+
+def _base_prompt(source: str) -> str:
     return f"""You are a vulnerability triage analyst investigating a single \
 dependency alert in a Java/Maven project.
 
@@ -83,7 +95,7 @@ def build_agent():
     agent = create_agent(
         model=stack.model,
         tools=get_tools(),
-        system_prompt=build_system_prompt(reachability_source()),
+        system_prompt=build_system_prompt(reachability_source(), policy_enabled()),
         response_format=TriageVerdict,
         middleware=stack.middleware,
     )

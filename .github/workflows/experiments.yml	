@@ -1,0 +1,79 @@
+name: Interim experiments
+
+# Start it from the browser or phone: Actions tab -> "Interim experiments" -> Run workflow.
+# Results: the run page shows the summary tables; full records are in the
+# "experiment-results" artifact. Partial results are kept between runs, so if
+# the API quota runs out, run it again later and it continues where it stopped.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reps:
+        description: "Repetitions per scenario"
+        default: "2"
+        required: true
+      limit:
+        description: "Only the first N scenarios (0 = all 60)"
+        default: "0"
+        required: true
+      fresh:
+        description: "Start from scratch (ignore earlier partial results)"
+        type: boolean
+        default: false
+
+jobs:
+  experiments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Restore partial results from earlier runs
+        if: ${{ !inputs.fresh }}
+        uses: actions/cache/restore@v4
+        with:
+          path: results/experiments/latest
+          key: experiments-${{ github.run_id }}
+          restore-keys: experiments-
+
+      - name: Tests
+        run: uv run python -m pytest -q
+
+      - name: Generate scenarios
+        run: uv run python agent/generate_scenarios.py
+
+      - name: Run experiments
+        continue-on-error: true
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          LLM_MODELS: ${{ vars.LLM_MODELS || 'gemini-3.5-flash-lite' }}
+          LLM_RPM: ${{ vars.LLM_RPM || '10' }}
+        run: uv run python agent/run_experiments.py --reps ${{ inputs.reps }} --limit ${{ inputs.limit }} --out results/experiments/latest
+
+      - name: Summary tables
+        if: always()
+        run: |
+          uv run python agent/run_experiments.py --summary-only --out results/experiments/latest
+          cat results/experiments/latest/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep partial results for the next run
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: results/experiments/latest
+          key: experiments-${{ github.run_id }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: experiment-results
+          path: results/experiments/latest
