@@ -71,11 +71,16 @@ def metrics(rows, tool):
     fn = sum(1 for r in rows if r[tool] == "no" and r["truth"] == "yes")
     undecided = sum(1 for r in rows if r[tool] not in ("yes", "no"))
     decided = tp + fp + tn + fn
+    positives = sum(1 for r in rows if r["truth"] == "yes")
     return {
         "advisories": len(rows), "tp": tp, "fp": fp, "tn": tn, "fn": fn, "undecided": undecided,
+        "decided_share": decided / len(rows) if rows else None,
         "precision": tp / (tp + fp) if tp + fp else None,
-        "recall": tp / (tp + fn) if tp + fn else None,
+        "recall": tp / (tp + fn) if tp + fn else None,                       # among cases it decided
+        "recall_all": tp / positives if positives else None,                  # among ALL truly reachable
         "accuracy_decided": (tp + tn) / decided if decided else None,
+        "accuracy_all": (tp + tn) / len(rows) if rows else None,              # undecided counted as wrong
+        "always_reachable_accuracy": positives / len(rows) if rows else None, # reference baseline
     }
 
 
@@ -104,22 +109,34 @@ def pct(x):
     return "n/a" if x is None else f"{x * 100:.1f}%"
 
 
+def _tables(title_rows, rows_by_tool):
+    lines = ["| Analysis | TP | FP | TN | FN | Undecided |", "|---|---|---|---|---|---|"]
+    for name, m in rows_by_tool:
+        lines.append(f"| {name} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {m['undecided']} |")
+    lines += ["", "| Analysis | Answered | Precision (answered) | Found of all reachable | Accuracy (answered) | Accuracy (unanswered = wrong) |",
+              "|---|---|---|---|---|---|"]
+    for name, m in rows_by_tool:
+        lines.append(f"| {name} | {pct(m['decided_share'])} | {pct(m['precision'])} | {pct(m['recall_all'])} | "
+                     f"{pct(m['accuracy_decided'])} | {pct(m['accuracy_all'])} |")
+    ref = rows_by_tool[0][1]["always_reachable_accuracy"]
+    lines += ["", f"Reference: answering \"reachable\" for everything would be right {pct(ref)} of the time."]
+    return lines
+
+
 def to_markdown(rows, m_v1, m_eng):
-    lines = ["# E1: reachability accuracy against ground truth", "",
-             f"{len(rows)} advisories across {len({r['project'] for r in rows})} target projects.", "",
-             "| Analysis | TP | FP | TN | FN | Undecided (ambiguous/error) | Precision | Recall | Accuracy (decided) |",
-             "|---|---|---|---|---|---|---|---|---|"]
-    for name, m in (("v1 text search", m_v1), ("SootUp engine", m_eng)):
-        lines.append(f"| {name} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {m['undecided']} | "
-                     f"{pct(m['precision'])} | {pct(m['recall'])} | {pct(m['accuracy_decided'])} |")
     deps = dependency_rows(rows)
-    lines += ["", f"## Dependency level ({len(deps)} dependencies; a dependency counts once however many advisories it has)", "",
-              "| Analysis | TP | FP | TN | FN | Undecided | Precision | Recall | Accuracy (decided) |",
-              "|---|---|---|---|---|---|---|---|---|"]
-    for name, tool in (("v1 text search", "v1"), ("SootUp engine", "engine")):
-        m = metrics(deps, tool)
-        lines.append(f"| {name} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {m['undecided']} | "
-                     f"{pct(m['precision'])} | {pct(m['recall'])} | {pct(m['accuracy_decided'])} |")
+    lines = ["# E1: reachability accuracy against ground truth", "",
+             f"{len(rows)} advisories ({sum(1 for r in rows if r['truth'] == 'yes')} truly reachable) across "
+             f"{len({r['project'] for r in rows})} target projects.", "",
+             "How to read: the engine may answer *ambiguous* (undecided) instead of guessing; those cases are the "
+             "ones the escalation protocol hands to the analyst. 'Accuracy (answered)' only counts cases a "
+             "tool answered, so read it together with 'Answered'. The ground truth and the curated vulnerable "
+             "methods were written by the researcher for these projects, so this validates the pipeline on "
+             "designed cases, not SootUp in general.", "",
+             "## Advisory level", ""]
+    lines += _tables("advisory", [("v1 text search", m_v1), ("SootUp engine", m_eng)])
+    lines += ["", f"## Dependency level ({len(deps)} dependencies; each counted once)", ""]
+    lines += _tables("dependency", [("v1 text search", metrics(deps, "v1")), ("SootUp engine", metrics(deps, "engine"))])
     lines += ["", "## Per dependency", "", "| Project | Dependency | Advisories | Truth | v1 | Engine | Engine reason |",
               "|---|---|---|---|---|---|---|"]
     grouped = {}

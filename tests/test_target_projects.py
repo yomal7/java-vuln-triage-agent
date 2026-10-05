@@ -107,6 +107,11 @@ def test_eval_scores_v1_and_engine_against_truth():
     m_v1, m_eng = ev.metrics(rows, "v1"), ev.metrics(rows, "engine")
     assert m_v1["fp"] >= 1
     assert (m_eng["tp"], m_eng["tn"], m_eng["fp"], m_eng["undecided"]) == (1, 1, 0, 1)
+    # abstaining must not look like a perfect score
+    assert m_eng["accuracy_decided"] == 1.0 and m_eng["accuracy_all"] == pytest.approx(2 / 3)
+    assert m_eng["decided_share"] == pytest.approx(2 / 3)
+    assert m_eng["recall_all"] == 1.0                      # 1 of the 1 truly reachable advisory (GHSA-1)
+    assert m_eng["always_reachable_accuracy"] == pytest.approx(1 / 3)
     md = ev.to_markdown(rows, m_v1, m_eng)
     assert "v1 text search" in md and "SootUp engine" in md and "Dependency level" in md
     deps = {d["artifact"]: d for d in ev.dependency_rows(rows)}
@@ -162,3 +167,18 @@ def test_tools_read_per_project_files_from_the_environment(tmp_path, monkeypatch
     finally:
         monkeypatch.delenv("ALERTS_FILE")
         importlib.reload(tools)
+
+
+def test_abstaining_engine_is_not_credited_with_recall_it_did_not_earn():
+    """Regression: 4 of 22 reachable advisories found, 18 left undecided, must not read as 100% recall."""
+    import eval_reachability as ev
+    base = {"project": "p", "engine_reason": ""}
+    rows = ([{**base, "artifact": "a", "truth": "yes", "v1": "yes", "engine": "yes"}] * 4
+            + [{**base, "artifact": "b", "truth": "yes", "v1": "yes", "engine": "ambiguous"}] * 18
+            + [{**base, "artifact": "c", "truth": "no", "v1": "yes", "engine": "no"}] * 11)
+    m = ev.metrics(rows, "engine")
+    assert m["recall"] == 1.0                              # among the cases it answered
+    assert m["recall_all"] == pytest.approx(4 / 22)        # among everything that is truly reachable
+    assert m["decided_share"] == pytest.approx(15 / 33)
+    md = ev.to_markdown(rows, ev.metrics(rows, "v1"), m)
+    assert "Found of all reachable" in md and "unanswered = wrong" in md and "Reference:" in md
