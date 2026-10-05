@@ -1,0 +1,25 @@
+{
+  "_comment": "Curated vulnerable methods (manual curation from advisory text). 'vulnerability' matches the OSV id or any alias such as a CVE; '*' applies to every other advisory of that artifact. Methods are 'fully.qualified.Class#method' ('<init>' = constructor). Advisories with no entry are reported as ambiguous (no_method_data) when the dependency is used.",
+  "entries": [
+    {"artifact_id": "commons-text", "vulnerability": "CVE-2022-42889",
+     "methods": ["org.apache.commons.text.StringSubstitutor#createInterpolator", "org.apache.commons.text.lookup.StringLookupFactory#interpolatorStringLookup"],
+     "source": "Advisory: the default interpolator enables script, dns and url lookups"},
+    {"artifact_id": "snakeyaml", "vulnerability": "*",
+     "methods": ["org.yaml.snakeyaml.Yaml#load", "org.yaml.snakeyaml.Yaml#loadAs", "org.yaml.snakeyaml.Yaml#loadAll"],
+     "source": "Advisories concern parsing untrusted YAML through Yaml.load*"},
+    {"artifact_id": "spring-core", "vulnerability": "CVE-2026-41848",
+     "methods": ["org.springframework.util.AntPathMatcher#match", "org.springframework.util.AntPathMatcher#matchStart", "org.springframework.util.AntPathMatcher#extractUriTemplateVariables"],
+     "source": "Methods named in the advisory text"},
+    {"artifact_id": "guava", "vulnerability": "CVE-2020-8908",
+     "methods": ["com.google.common.io.Files#createTempDir"], "source": "Advisory"},
+    {"artifact_id": "guava", "vulnerability": "CVE-2023-2976",
+     "methods": ["com.google.common.io.FileBackedOutputStream#<init>"], "source": "Advisory"},
+    {"artifact_id": "commons-io", "vulnerability": "CVE-2021-29425",
+     "methods": ["org.apache.commons.io.FilenameUtils#normalize", "org.apache.commons.io.FilenameUtils#normalizeNoEndSeparator"], "source": "Advisory"},
+    {"artifact_id": "commons-io", "vulnerability": "CVE-2024-47554",
+     "methods": ["org.apache.commons.io.input.XmlStreamReader#<init>"], "source": "Advisory"},
+    {"artifact_id": "xstream", "vulnerability": "*",
+     "methods": ["com.thoughtworks.xstream.XStream#fromXML", "com.thoughtworks.xstream.XStream#unmarshal"],
+     "source": "XStream advisories concern deserialising untrusted XML"}
+  ]
+}

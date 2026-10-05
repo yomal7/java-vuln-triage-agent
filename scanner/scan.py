@@ -14,6 +14,7 @@ Usage:
   python scanner/scan.py [path/to/maven/project]   # defaults to ../target-project
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -29,7 +30,7 @@ EPSS_CVE_CHUNK = 150  # FIRST.org caps the 'cve' query param at 2000 chars total
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROJECT = ROOT / "target-project"
-RESULTS_DIR = ROOT / "results"
+RESULTS_DIR = Path(os.environ.get("SCAN_RESULTS_DIR", ROOT / "results"))  # per-project: results/<project>
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +214,7 @@ def fetch_epss_scores(cve_ids: list[str]) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 def main():
     project_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PROJECT
-    RESULTS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     raw_tree = run_mvn_dependency_tree(project_dir)
     deps = parse_dependency_tree(raw_tree)

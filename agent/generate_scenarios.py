@@ -51,13 +51,35 @@ def designed_tool_gaps(alert, reach_status):
     return gaps
 
 
-def build(alerts, assets, reach_results, patterns=PATTERNS, truth=REACHABILITY_TRUTH):
+def truth_from_file(ground_truth, alert):
+    """Dependency-level truth from a ground_truth.json: 'yes' if any advisory is reachable."""
+    dep = alert["dependency"]
+    entries = [e for e in ground_truth.get("entries", []) if e["artifact_id"] == dep["artifact_id"]]
+    if not entries:
+        return None
+    verdicts = []
+    for v in alert["vulnerabilities"]:
+        ids = {v["id"], *v.get("aliases", [])}
+        match = next((e for e in entries if e["vulnerability"] in ids), None) or \
+            next((e for e in entries if e["vulnerability"] == "*"), None)
+        if match:
+            verdicts.append(match["reachable"])
+    if not verdicts:
+        return None
+    return "yes" if "yes" in verdicts else "no"
+
+
+def build(alerts, assets, reach_results, patterns=PATTERNS, truth=REACHABILITY_TRUTH, ground_truth=None, prefix="G"):
     scenarios, n = [], 0
     for alert in alerts:
         dep = alert["dependency"]
         vulns = alert["vulnerabilities"]
         status = aggregate_reachability(reach_results, dep, [v["id"] for v in vulns])["status"]
-        reach_truth = {"confirmed": "yes", "absent": "no"}.get(status, truth.get(dep["artifact_id"], "unclear"))
+        file_truth = truth_from_file(ground_truth, alert) if ground_truth else None
+        if file_truth is not None:
+            reach_truth = file_truth          # documented ground truth wins
+        else:
+            reach_truth = {"confirmed": "yes", "absent": "no"}.get(status, truth.get(dep["artifact_id"], "unclear"))
         tool_gaps = designed_tool_gaps(alert, status)
         epss = [v["epss_score"] for v in vulns if v.get("epss_score") is not None]
         for asset_id, facts in assets.items():
@@ -74,7 +96,7 @@ def build(alerts, assets, reach_results, patterns=PATTERNS, truth=REACHABILITY_T
             for pattern in patterns:
                 n += 1
                 scenarios.append(Scenario(
-                    id=f"G{n:03d}",
+                    id=f"{prefix}{n:03d}",
                     asset_id=asset_id,
                     dependency=coord(dep),
                     withheld=tuple(pattern),
@@ -105,11 +127,18 @@ def main():
     ap.add_argument("--environment", default=str(ROOT / "protocol" / "data" / "environment.example.json"))
     ap.add_argument("--reachability", default=str(ROOT / "results" / "reachability.json"))
     ap.add_argument("--out", default=str(ROOT / "results" / "scenarios.generated.json"))
+    ap.add_argument("--ground-truth", help="ground_truth.json of a target project (its asset_id is used)")
+    ap.add_argument("--assets", nargs="*", help="only these asset ids")
+    ap.add_argument("--id-prefix", default="G", help="scenario id prefix, e.g. O for orders-service")
     args = ap.parse_args()
 
     alerts = json.loads(Path(args.alerts).read_text())
     assets = load_assets(args.environment)
-    scenarios = build(alerts, assets, load_reachability(args.reachability))
+    gt = json.loads(Path(args.ground_truth).read_text()) if args.ground_truth else None
+    wanted = args.assets or ([gt["asset_id"]] if gt and gt.get("asset_id") else None)
+    if wanted:
+        assets = {k: v for k, v in assets.items() if k in wanted}
+    scenarios = build(alerts, assets, load_reachability(args.reachability), ground_truth=gt, prefix=args.id_prefix)
     check_scenarios(scenarios, assets, [coord(a["dependency"]) for a in alerts])
     Path(args.out).write_text(json.dumps(to_json(scenarios), indent=2))
     controls = sum(1 for s in scenarios if not s.expected_slots)

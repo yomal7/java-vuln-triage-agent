@@ -1,0 +1,18 @@
+{
+  "_comment": "Assets the two target projects run on. These are the complete facts (the participant's fact sheet); scenarios withhold some of them from the agent.",
+  "schema_version": "0.1",
+  "assets": {
+    "orders-portal": {
+      "description": "Customer-facing orders service (runs orders-service)",
+      "network_exposure": "internet_facing",
+      "asset_criticality": "high",
+      "patch_window": "weekly, Sunday night"
+    },
+    "batch-server": {
+      "description": "Internal reporting server that feeds the finance reports (runs report-batch)",
+      "network_exposure": "internal",
+      "asset_criticality": "high",
+      "patch_window": "quarterly release train"
+    }
+  }
+}

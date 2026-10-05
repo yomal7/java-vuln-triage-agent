@@ -1,0 +1,19 @@
+{
+  "_comment": "Ground truth for orders-service, by design of the code. 'vulnerability' matches an OSV id or alias; '*' covers the artifact's other advisories. 'reachable' is yes/no.",
+  "project": "orders-service",
+  "asset_id": "orders-portal",
+  "entries": [
+    {"artifact_id": "commons-text", "vulnerability": "CVE-2022-42889", "reachable": "yes",
+     "evidence": "NotificationFormatter.format calls StringSubstitutor.createInterpolator().replace() on the message template"},
+    {"artifact_id": "commons-text", "vulnerability": "*", "reachable": "no", "evidence": "No other commons-text feature is used"},
+    {"artifact_id": "snakeyaml", "vulnerability": "*", "reachable": "yes",
+     "evidence": "ConfigImporter.importConfig calls new Yaml().load() on an uploaded document"},
+    {"artifact_id": "spring-core", "vulnerability": "CVE-2026-41848", "reachable": "yes",
+     "evidence": "Router.route calls AntPathMatcher.match with the client-supplied path"},
+    {"artifact_id": "spring-core", "vulnerability": "*", "reachable": "no", "evidence": "Only AntPathMatcher is used"},
+    {"artifact_id": "guava", "vulnerability": "*", "reachable": "no",
+     "evidence": "Only ImmutableList.of is used; Files.createTempDir and FileBackedOutputStream are not"},
+    {"artifact_id": "h2", "vulnerability": "*", "reachable": "no",
+     "evidence": "Declared but never used; only mentioned in a comment"}
+  ]
+}

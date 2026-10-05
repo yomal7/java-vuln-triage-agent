@@ -1,0 +1,111 @@
+name: Target projects (reachability + experiments)
+
+# Builds the two target projects, scans them (OSV, KEV, EPSS), runs the SootUp
+# reachability engine, scores it against the ground truth (E1), generates the
+# scenarios and, if ticked, runs the LLM experiments on them.
+# Start: Actions tab -> "Target projects ..." -> Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_experiments:
+        description: "Also run the LLM experiments on the target projects"
+        type: boolean
+        default: false
+      reps:
+        description: "Repetitions per scenario (experiments only)"
+        default: "1"
+        required: true
+
+jobs:
+  target-projects:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          pip install uv
+          uv sync
+
+      - name: Build target projects and copy their dependency jars
+        run: |
+          for p in orders-service report-batch; do
+            mvn -q -B -f target-projects/$p/pom.xml package -DskipTests
+            mvn -q -B -f target-projects/$p/pom.xml dependency:copy-dependencies -DincludeScope=runtime
+          done
+
+      - name: Scan target projects (OSV, KEV, EPSS)
+        run: |
+          for p in orders-service report-batch; do
+            SCAN_RESULTS_DIR=results/$p uv run python scanner/scan.py target-projects/$p
+          done
+
+      - name: Build the SootUp reachability engine
+        run: mvn -q -B -f reachability-engine/pom.xml package
+
+      - name: Reachability analysis (SootUp, CHA call graph)
+        continue-on-error: true
+        run: |
+          for p in orders-service report-batch; do
+            java -jar reachability-engine/target/reachability-engine-1.0-jar-with-dependencies.jar \
+              --project $p \
+              --alerts results/$p/alerts.json \
+              --classes target-projects/$p/target/classes \
+              --deps target-projects/$p/target/dependency \
+              --methods target-projects/vulnerable_methods.json \
+              --out results/$p/reachability.json
+          done
+
+      - name: E1 reachability accuracy (v1 text search vs SootUp vs ground truth)
+        if: always()
+        run: |
+          uv run python agent/eval_reachability.py
+          cat results/reachability_eval.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate scenarios from the ground truth
+        run: |
+          uv run python agent/generate_scenarios.py --alerts results/orders-service/alerts.json \
+            --reachability results/orders-service/reachability.json --environment target-projects/environment.json \
+            --ground-truth target-projects/orders-service/ground_truth.json --id-prefix O --out results/orders-service/scenarios.json
+          uv run python agent/generate_scenarios.py --alerts results/report-batch/alerts.json \
+            --reachability results/report-batch/reachability.json --environment target-projects/environment.json \
+            --ground-truth target-projects/report-batch/ground_truth.json --id-prefix R --out results/report-batch/scenarios.json
+
+      - name: Experiments on the target projects (LLM)
+        if: ${{ inputs.run_experiments }}
+        continue-on-error: true
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          LLM_MODELS: ${{ vars.LLM_MODELS || 'gemini-3.5-flash-lite' }}
+          LLM_RPM: ${{ vars.LLM_RPM || '10' }}
+        run: |
+          for p in orders-service report-batch; do
+            TARGET_SRC=target-projects/$p/src uv run python agent/run_experiments.py \
+              --alerts results/$p/alerts.json --reachability results/$p/reachability.json \
+              --environment target-projects/environment.json --scenarios results/$p/scenarios.json \
+              --reps ${{ inputs.reps }} --out results/experiments/$p
+            echo "## Experiments: $p" >> "$GITHUB_STEP_SUMMARY"
+            cat results/experiments/$p/summary.md >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: target-project-results
+          path: |
+            results/orders-service
+            results/report-batch
+            results/reachability_eval.*
+            results/experiments

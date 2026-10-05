@@ -31,12 +31,14 @@ from protocol.aggregate import (  # noqa: E402
 )
 
 RESULTS_DIR = ROOT / "results"
+# Per-project runs point these at results/<project>/... (defaults: the spike target).
+ALERTS_PATH = Path(os.environ.get("ALERTS_FILE", RESULTS_DIR / "alerts.json"))
 REACHABILITY_PATH = Path(os.environ.get("REACHABILITY_FILE", RESULTS_DIR / "reachability.json"))
-TARGET_PROJECT_SRC = ROOT / "target-project" / "src"
+TARGET_PROJECT_SRC = Path(os.environ.get("TARGET_SRC", ROOT / "target-project" / "src"))
 
 try:
-    _ALERTS = json.loads((RESULTS_DIR / "alerts.json").read_text())
-    _DEP_TREE = json.loads((RESULTS_DIR / "dependency_tree.json").read_text())
+    _ALERTS = json.loads(ALERTS_PATH.read_text())
+    _DEP_TREE = json.loads((ALERTS_PATH.parent / "dependency_tree.json").read_text())
 except FileNotFoundError as e:
     raise RuntimeError(
         "results/alerts.json (or dependency_tree.json) not found — "

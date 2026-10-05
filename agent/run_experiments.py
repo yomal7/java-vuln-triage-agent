@@ -20,6 +20,7 @@ Usage:
 """
 import argparse
 import json
+import os
 import statistics
 import sys
 from collections import Counter
@@ -206,6 +207,7 @@ def main():
     load_dotenv()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--scenarios", default=str(ROOT / "results" / "scenarios.generated.json"))
+    ap.add_argument("--alerts", default=str(ROOT / "results" / "alerts.json"))
     ap.add_argument("--environment", default=str(rs.DEFAULT_ENVIRONMENT))
     ap.add_argument("--reachability", default=str(rs.DEFAULT_REACHABILITY))
     ap.add_argument("--out", default=str(ROOT / "results" / "experiments" / "latest"))
@@ -218,7 +220,10 @@ def main():
     args = ap.parse_args()
 
     if not args.summary_only:
-        alerts = json.loads((ROOT / "results" / "alerts.json").read_text())
+        # the agent's tools read the same per-project files (set before triage_agent is imported)
+        os.environ["ALERTS_FILE"] = str(Path(args.alerts).resolve())
+        os.environ["REACHABILITY_FILE"] = str(Path(args.reachability).resolve())
+        alerts = json.loads(Path(args.alerts).read_text())
         by_coord = {rs._coord(a): a for a in alerts}
         assets = load_assets(args.environment)
         scenarios = load_scenarios(args.scenarios)

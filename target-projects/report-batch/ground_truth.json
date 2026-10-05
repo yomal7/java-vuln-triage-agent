@@ -1,0 +1,14 @@
+{
+  "_comment": "Ground truth for report-batch, by design of the code. 'vulnerability' matches an OSV id or alias; '*' covers the artifact's other advisories. 'reachable' is yes/no.",
+  "project": "report-batch",
+  "asset_id": "batch-server",
+  "entries": [
+    {"artifact_id": "commons-io", "vulnerability": "CVE-2021-29425", "reachable": "yes",
+     "evidence": "PathSanitizer.clean calls FilenameUtils.normalize on a user-supplied path"},
+    {"artifact_id": "commons-io", "vulnerability": "*", "reachable": "no", "evidence": "XmlStreamReader is not used"},
+    {"artifact_id": "xstream", "vulnerability": "*", "reachable": "yes",
+     "evidence": "BatchMain loads XmlImportPlugin by name from plugins.properties (reflection); XmlImportPlugin.run calls XStream.fromXML"},
+    {"artifact_id": "commons-collections", "vulnerability": "*", "reachable": "no",
+     "evidence": "Declared but never used; only mentioned in a comment"}
+  ]
+}
