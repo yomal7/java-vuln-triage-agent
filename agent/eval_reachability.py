@@ -79,6 +79,27 @@ def metrics(rows, tool):
     }
 
 
+def dependency_rows(rows):
+    """One row per (project, dependency): reachable if any of its advisories is.
+    Stops one library with many advisories (xstream: 18) from dominating the scores."""
+    groups = {}
+    for r in rows:
+        groups.setdefault((r["project"], r["artifact"]), []).append(r)
+    out = []
+    for (project, artifact), rs in sorted(groups.items()):
+        def collapse(tool):
+            vals = [x[tool] for x in rs]
+            if "yes" in vals:
+                return "yes"
+            if all(v == "no" for v in vals):
+                return "no"
+            return "ambiguous"
+        out.append({"project": project, "artifact": artifact, "advisories": len(rs),
+                    "truth": "yes" if any(x["truth"] == "yes" for x in rs) else "no",
+                    "v1": collapse("v1"), "engine": collapse("engine")})
+    return out
+
+
 def pct(x):
     return "n/a" if x is None else f"{x * 100:.1f}%"
 
@@ -89,6 +110,14 @@ def to_markdown(rows, m_v1, m_eng):
              "| Analysis | TP | FP | TN | FN | Undecided (ambiguous/error) | Precision | Recall | Accuracy (decided) |",
              "|---|---|---|---|---|---|---|---|---|"]
     for name, m in (("v1 text search", m_v1), ("SootUp engine", m_eng)):
+        lines.append(f"| {name} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {m['undecided']} | "
+                     f"{pct(m['precision'])} | {pct(m['recall'])} | {pct(m['accuracy_decided'])} |")
+    deps = dependency_rows(rows)
+    lines += ["", f"## Dependency level ({len(deps)} dependencies; a dependency counts once however many advisories it has)", "",
+              "| Analysis | TP | FP | TN | FN | Undecided | Precision | Recall | Accuracy (decided) |",
+              "|---|---|---|---|---|---|---|---|---|"]
+    for name, tool in (("v1 text search", "v1"), ("SootUp engine", "engine")):
+        m = metrics(deps, tool)
         lines.append(f"| {name} | {m['tp']} | {m['fp']} | {m['tn']} | {m['fn']} | {m['undecided']} | "
                      f"{pct(m['precision'])} | {pct(m['recall'])} | {pct(m['accuracy_decided'])} |")
     lines += ["", "## Per dependency", "", "| Project | Dependency | Advisories | Truth | v1 | Engine | Engine reason |",
@@ -124,7 +153,11 @@ def main():
     m_v1, m_eng = metrics(rows, "v1"), metrics(rows, "engine")
     md = to_markdown(rows, m_v1, m_eng)
     Path(args.out + ".md").write_text(md)
-    Path(args.out + ".json").write_text(json.dumps({"v1": m_v1, "engine": m_eng, "rows": rows}, indent=2))
+    deps = dependency_rows(rows)
+    Path(args.out + ".json").write_text(json.dumps({
+        "advisory_level": {"v1": m_v1, "engine": m_eng},
+        "dependency_level": {"v1": metrics(deps, "v1"), "engine": metrics(deps, "engine")},
+        "rows": rows, "dependency_rows": deps}, indent=2))
     print(md)
 
 

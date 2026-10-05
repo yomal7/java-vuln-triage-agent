@@ -18,6 +18,24 @@ def pom_artifacts(project):
 
 
 # ---------------------------------------------------------------- data consistency
+def test_every_pom_is_well_formed_xml():
+    """Caught too late once: '--' inside an XML comment makes Maven refuse the pom."""
+    import xml.etree.ElementTree as ET
+    poms = list(TP.rglob("pom.xml")) + [ROOT / "reachability-engine" / "pom.xml"]
+    assert len(poms) == 3
+    for pom in poms:
+        ET.parse(pom)
+        for comment in re.findall(r"<!--(.*?)-->", pom.read_text(), re.S):
+            assert "--" not in comment, pom
+
+
+def test_designed_vulnerable_versions_are_not_already_fixed():
+    """commons-io 2.7 is the FIXED version of CVE-2021-29425; the designed case needs 2.6."""
+    text = (TP / "report-batch" / "pom.xml").read_text()
+    assert re.search(r"<artifactId>commons-io</artifactId>\s*<version>2\.6</version>", text)
+
+
+
 @pytest.mark.parametrize("project", PROJECTS)
 def test_every_dependency_has_ground_truth_and_vice_versa(project):
     gt = json.loads((TP / project / "ground_truth.json").read_text())
@@ -90,7 +108,10 @@ def test_eval_scores_v1_and_engine_against_truth():
     assert m_v1["fp"] >= 1
     assert (m_eng["tp"], m_eng["tn"], m_eng["fp"], m_eng["undecided"]) == (1, 1, 0, 1)
     md = ev.to_markdown(rows, m_v1, m_eng)
-    assert "v1 text search" in md and "SootUp engine" in md
+    assert "v1 text search" in md and "SootUp engine" in md and "Dependency level" in md
+    deps = {d["artifact"]: d for d in ev.dependency_rows(rows)}
+    assert deps["lib-a"]["truth"] == "yes" and deps["lib-a"]["engine"] == "yes"   # any yes wins
+    assert deps["lib-b"]["v1"] == "yes" and deps["lib-b"]["truth"] == "no"
 
 
 def test_eval_marks_missing_engine_results():
