@@ -1,0 +1,74 @@
+{
+  "_comment": "MANUAL STUB so the slot checker has structured input while the reachability engine (Steady vs SootUp) is undecided. Statuses reflect what target-project/src actually contains today. Replace with engine output; same shape.",
+  "schema_version": "0.1",
+  "project": { "name": "target-project", "build_command": "mvn compile" },
+  "analysis": { "engine": "manual-stub", "engine_version": null, "call_graph_algorithm": null },
+  "results": [
+    {
+      "dependency": { "group_id": "org.apache.logging.log4j", "artifact_id": "log4j-core", "version": "2.13.0" },
+      "vulnerability_id": "*",
+      "status": "ambiguous",
+      "reason": "App.java calls LogManager.getLogger and logger.info with a constant string, but no vulnerable-method list exists for these advisories yet.",
+      "method_source": "none",
+      "targets": [],
+      "ambiguity_cause": "no_method_data",
+      "evidence": [],
+      "error": null
+    },
+    {
+      "dependency": { "group_id": "com.fasterxml.jackson.core", "artifact_id": "jackson-databind", "version": "2.9.8" },
+      "vulnerability_id": "*",
+      "status": "absent",
+      "reason": "No source file imports or uses this library's packages (the only text match is a comment).",
+      "method_source": "not_applicable",
+      "targets": [],
+      "ambiguity_cause": null,
+      "evidence": [],
+      "error": null
+    },
+    {
+      "dependency": { "group_id": "com.fasterxml.jackson.core", "artifact_id": "jackson-core", "version": "2.9.8" },
+      "vulnerability_id": "*",
+      "status": "absent",
+      "reason": "Transitive dependency; no source file imports or uses its packages.",
+      "method_source": "not_applicable",
+      "targets": [],
+      "ambiguity_cause": null,
+      "evidence": [],
+      "error": null
+    },
+    {
+      "dependency": { "group_id": "org.springframework", "artifact_id": "spring-core", "version": "5.2.0.RELEASE" },
+      "vulnerability_id": "*",
+      "status": "absent",
+      "reason": "No source file imports or uses this library's packages.",
+      "method_source": "not_applicable",
+      "targets": [],
+      "ambiguity_cause": null,
+      "evidence": [],
+      "error": null
+    },
+    {
+      "dependency": { "group_id": "commons-collections", "artifact_id": "commons-collections", "version": "3.2.1" },
+      "vulnerability_id": "*",
+      "status": "absent",
+      "reason": "No source file imports or uses this library's packages.",
+      "method_source": "not_applicable",
+      "targets": [],
+      "ambiguity_cause": null,
+      "evidence": [],
+      "error": null
+    },
+    {
+      "dependency": { "group_id": "junit", "artifact_id": "junit", "version": "4.12" },
+      "vulnerability_id": "*",
+      "status": "absent",
+      "reason": "Test-scope dependency and the project has no test sources.",
+      "method_source": "not_applicable",
+      "targets": [],
+      "ambiguity_cause": null,
+      "evidence": [],
+      "error": null
+    }
+  ]
+}
